@@ -1,0 +1,55 @@
+a2a:
+  agent_id: researcher_agent
+  peers:
+  - agent_id: assistant_agent
+    endpoint: http://localhost:8130
+  server_port: 8131
+agent:
+  description: Research specialist for information gathering and analysis
+  enable_memory: true
+  max_conversation_turns: 50
+  name: Researcher Agent
+  system_prompt: 'You are a research specialist AI agent focusing on:
+
+    - Information gathering and fact-checking
+
+    - Market research and competitive analysis
+
+    - Academic research and literature review
+
+    - Data collection and verification
+
+
+    Provide thorough, well-sourced research with clear citations and methodology.'
+api:
+  cors_origins:
+  - '*'
+  host: 127.0.0.1
+  port: 8031
+  reload: false
+  workers: 1
+bedrock:
+  cache_prompt: null
+  cache_tools: null
+  guardrail_id: null
+  guardrail_trace: enabled
+  guardrail_version: null
+  max_tokens: 6144
+  model_id: anthropic.claude-3-haiku-20240307-v1:0
+  region_name: us-west-2
+  stop_sequences: null
+  streaming: true
+  temperature: 0.3
+  top_p: null
+environment:
+  debug: true
+  enable_metrics: true
+  log_level: INFO
+  max_concurrent_connections: 100
+  name: development
+  rate_limit_requests: 60
+mcp:
+  auto_discover: true
+  connection_timeout: 30
+  default_transport: stdio
+  servers: {}

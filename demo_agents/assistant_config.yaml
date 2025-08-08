@@ -1,0 +1,58 @@
+a2a:
+  agent_id: assistant_agent
+  peers:
+  - agent_id: researcher_agent
+    endpoint: http://localhost:8121
+  - agent_id: writer_agent
+    endpoint: http://localhost:8122
+  server_port: 8120
+agent:
+  description: General-purpose AI assistant for task coordination and user interaction
+  enable_memory: true
+  max_conversation_turns: 50
+  name: Assistant Agent
+  system_prompt: 'You are a helpful AI assistant that specializes in:
+
+    - Task coordination and delegation
+
+    - User interaction and communication
+
+    - General knowledge and problem-solving
+
+    - Coordinating with other specialist agents
+
+
+    When working with other agents, clearly communicate requirements and consolidate
+    responses.'
+api:
+  cors_origins:
+  - '*'
+  host: 127.0.0.1
+  port: 8020
+  reload: false
+  workers: 1
+bedrock:
+  cache_prompt: null
+  cache_tools: null
+  guardrail_id: null
+  guardrail_trace: enabled
+  guardrail_version: null
+  max_tokens: 4096
+  model_id: anthropic.claude-3-haiku-20240307-v1:0
+  region_name: us-west-2
+  stop_sequences: null
+  streaming: true
+  temperature: 0.7
+  top_p: null
+environment:
+  debug: true
+  enable_metrics: true
+  log_level: INFO
+  max_concurrent_connections: 100
+  name: development
+  rate_limit_requests: 60
+mcp:
+  auto_discover: true
+  connection_timeout: 30
+  default_transport: stdio
+  servers: {}

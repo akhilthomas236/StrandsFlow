@@ -186,6 +186,31 @@ class EnvironmentConfig(BaseModel):
     )
 
 
+class A2AConfig(BaseModel):
+    """Configuration for Agent-to-Agent (A2A) communication."""
+    
+    agent_id: str = Field(
+        default="default_agent",
+        description="Unique identifier for this agent in A2A network"
+    )
+    server_port: int = Field(
+        default=9000,
+        description="Port for A2A server to listen on"
+    )
+    peers: List[Dict[str, str]] = Field(
+        default_factory=list,
+        description="List of peer agents with their endpoints"
+    )
+    timeout: int = Field(
+        default=30,
+        description="Timeout for A2A communications in seconds"
+    )
+    retry_attempts: int = Field(
+        default=3,
+        description="Number of retry attempts for failed A2A calls"
+    )
+
+
 class StrandsFlowConfig(BaseModel):
     """Main configuration for StrandsFlow platform."""
     
@@ -205,10 +230,9 @@ class StrandsFlowConfig(BaseModel):
         default_factory=APIConfig,
         description="API server configuration"
     )
-    
-    environment: EnvironmentConfig = Field(
-        default_factory=EnvironmentConfig,
-        description="Environment-specific configuration"
+    a2a: A2AConfig = Field(
+        default_factory=A2AConfig,
+        description="Agent-to-Agent communication configuration"
     )
     environment: EnvironmentConfig = Field(
         default_factory=EnvironmentConfig,

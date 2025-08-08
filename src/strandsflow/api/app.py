@@ -386,5 +386,283 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         logger.error("WebSocket error", error=str(e), session_id=session_id)
         manager.disconnect(websocket, session_id)
 
+# Multi-agent API endpoints
+try:
+    from ..multiagent import (
+        Orchestrator, WorkflowType, SpecialistPool, create_predefined_pool,
+        WorkflowManager, A2AServerManager
+    )
+    MULTIAGENT_AVAILABLE = True
+except ImportError:
+    MULTIAGENT_AVAILABLE = False
+    logger.warning("Multi-agent features not available - missing dependencies")
+
+# Multi-agent Pydantic models
+if MULTIAGENT_AVAILABLE:
+    class MultiAgentTask(BaseModel):
+        task: str
+        workflow_type: str = "conditional"
+        agents: Optional[List[str]] = None
+        
+    class MultiAgentResponse(BaseModel):
+        status: str
+        workflow_type: str
+        results: Dict[str, Any]
+        execution_time: Optional[float] = None
+        
+    class WorkflowExecuteRequest(BaseModel):
+        workflow_name: str
+        inputs: Dict[str, Any]
+        
+    class WorkflowExecuteResponse(BaseModel):
+        execution_id: str
+        status: str
+        
+    class SpecialistCreateRequest(BaseModel):
+        name: str
+        role: str
+        description: str
+        system_prompt: str
+        capabilities: List[str]
+        model_id: str = "anthropic.claude-3-haiku-20240307-v1:0"
+        temperature: float = 0.7
+
+# Global multi-agent instances
+orchestrator: Optional[Orchestrator] = None
+specialist_pool: Optional[SpecialistPool] = None
+workflow_manager: Optional[WorkflowManager] = None
+a2a_manager: Optional[A2AServerManager] = None
+
+async def get_orchestrator() -> Orchestrator:
+    """Get or create the global orchestrator instance."""
+    global orchestrator, specialist_pool, a2a_manager
+    
+    if not MULTIAGENT_AVAILABLE:
+        raise HTTPException(status_code=501, detail="Multi-agent features not available")
+    
+    if orchestrator is None:
+        # Initialize specialist pool
+        if specialist_pool is None:
+            specialist_pool = await create_predefined_pool(get_config())
+            await specialist_pool.initialize_all()
+        
+        # Initialize A2A manager
+        if a2a_manager is None:
+            a2a_manager = A2AServerManager()
+        
+        # Create orchestrator
+        orchestrator = Orchestrator(a2a_manager=a2a_manager)
+        
+        # Add specialists to orchestrator
+        for name, agent in specialist_pool.specialists.items():
+            config = specialist_pool.configs[name]
+            orchestrator.add_specialist(name, agent, config.role, config.capabilities)
+        
+        # Create orchestrator agent
+        orchestrator.create_orchestrator_agent()
+        
+        logger.info("Multi-agent orchestrator initialized")
+    
+    return orchestrator
+
+async def get_workflow_manager() -> WorkflowManager:
+    """Get or create the global workflow manager instance."""
+    global workflow_manager
+    
+    if not MULTIAGENT_AVAILABLE:
+        raise HTTPException(status_code=501, detail="Multi-agent features not available")
+    
+    if workflow_manager is None:
+        orch = await get_orchestrator()
+        workflow_manager = WorkflowManager(orch, specialist_pool)
+        logger.info("Workflow manager initialized")
+    
+    return workflow_manager
+
+# Multi-agent endpoints
+if MULTIAGENT_AVAILABLE:
+    
+    @app.get("/api/v1/multiagent/status")
+    async def get_multiagent_status():
+        """Get multi-agent system status."""
+        try:
+            orch = await get_orchestrator()
+            wf_mgr = await get_workflow_manager()
+            
+            return {
+                "status": "ready",
+                "orchestrator": orch.get_metrics(),
+                "specialist_pool": specialist_pool.get_metrics() if specialist_pool else {},
+                "workflow_manager": {
+                    "workflows": len(wf_mgr.workflows),
+                    "executions": len(wf_mgr.executions)
+                },
+                "a2a_manager": {
+                    "servers": len(a2a_manager.servers) if a2a_manager else 0
+                }
+            }
+        except Exception as e:
+            logger.error(f"Error getting multi-agent status: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+    
+    @app.post("/api/v1/multiagent/execute", response_model=MultiAgentResponse)
+    async def execute_multiagent_task(request: MultiAgentTask):
+        """Execute a task using multi-agent orchestration."""
+        try:
+            orch = await get_orchestrator()
+            
+            # Parse workflow type
+            workflow_type = WorkflowType(request.workflow_type.lower())
+            
+            start_time = time.time()
+            result = await orch.execute_workflow(
+                task=request.task,
+                workflow_type=workflow_type,
+                agents=request.agents
+            )
+            execution_time = time.time() - start_time
+            
+            return MultiAgentResponse(
+                status="success",
+                workflow_type=request.workflow_type,
+                results=result,
+                execution_time=execution_time
+            )
+            
+        except Exception as e:
+            logger.error(f"Error executing multi-agent task: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+    
+    @app.get("/api/v1/multiagent/specialists")
+    async def list_specialists():
+        """List all available specialist agents."""
+        try:
+            orch = await get_orchestrator()
+            return specialist_pool.list_specialists() if specialist_pool else {}
+        except Exception as e:
+            logger.error(f"Error listing specialists: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+    
+    @app.post("/api/v1/multiagent/specialists")
+    async def create_specialist(request: SpecialistCreateRequest):
+        """Create a new specialist agent."""
+        try:
+            if not specialist_pool:
+                raise HTTPException(status_code=500, detail="Specialist pool not initialized")
+            
+            from ..multiagent.specialist_pool import SpecialistConfig
+            
+            config = SpecialistConfig(
+                name=request.name,
+                role=request.role,
+                description=request.description,
+                system_prompt=request.system_prompt,
+                capabilities=request.capabilities,
+                model_id=request.model_id,
+                temperature=request.temperature
+            )
+            
+            specialist = await specialist_pool.add_specialist(config, get_config())
+            await specialist.initialize()
+            
+            # Add to orchestrator if available
+            if orchestrator:
+                orchestrator.add_specialist(request.name, specialist, request.role, request.capabilities)
+            
+            return {"status": "success", "message": f"Specialist '{request.name}' created"}
+            
+        except Exception as e:
+            logger.error(f"Error creating specialist: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+    
+    @app.get("/api/v1/multiagent/workflows")
+    async def list_workflows():
+        """List all available workflows."""
+        try:
+            wf_mgr = await get_workflow_manager()
+            return wf_mgr.list_workflows()
+        except Exception as e:
+            logger.error(f"Error listing workflows: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+    
+    @app.post("/api/v1/multiagent/workflows/execute", response_model=WorkflowExecuteResponse)
+    async def execute_workflow(request: WorkflowExecuteRequest):
+        """Execute a predefined workflow."""
+        try:
+            wf_mgr = await get_workflow_manager()
+            
+            execution_id = await wf_mgr.execute_workflow(
+                workflow_name=request.workflow_name,
+                inputs=request.inputs
+            )
+            
+            return WorkflowExecuteResponse(
+                execution_id=execution_id,
+                status="started"
+            )
+            
+        except Exception as e:
+            logger.error(f"Error executing workflow: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+    
+    @app.get("/api/v1/multiagent/workflows/{execution_id}")
+    async def get_workflow_status(execution_id: str):
+        """Get workflow execution status."""
+        try:
+            wf_mgr = await get_workflow_manager()
+            execution = wf_mgr.get_execution_status(execution_id)
+            
+            if not execution:
+                raise HTTPException(status_code=404, detail="Workflow execution not found")
+            
+            return {
+                "execution_id": execution_id,
+                "workflow_name": execution.workflow_name,
+                "status": execution.status.value,
+                "current_step": execution.current_step,
+                "results": execution.results,
+                "error": execution.error,
+                "start_time": execution.start_time,
+                "end_time": execution.end_time
+            }
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error getting workflow status: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+    
+    @app.get("/api/v1/multiagent/workflows/executions")
+    async def list_workflow_executions():
+        """List all workflow executions."""
+        try:
+            wf_mgr = await get_workflow_manager()
+            return wf_mgr.list_executions()
+        except Exception as e:
+            logger.error(f"Error listing workflow executions: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+    
+    @app.get("/api/v1/multiagent/a2a/agents")
+    async def list_a2a_agents():
+        """List all A2A agents."""
+        try:
+            orch = await get_orchestrator()
+            return a2a_manager.list_agents() if a2a_manager else {}
+        except Exception as e:
+            logger.error(f"Error listing A2A agents: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+# Add shutdown handler for multi-agent resources
+@app.on_event("shutdown")
+async def shutdown_multiagent():
+    """Cleanup multi-agent resources on shutdown."""
+    if specialist_pool:
+        await specialist_pool.shutdown_all()
+        logger.info("Specialist pool shutdown complete")
+    
+    if a2a_manager:
+        # No explicit shutdown needed for our simplified A2A implementation
+        logger.info("A2A manager shutdown complete")
+
 # Export the app for ASGI servers
 __all__ = ["app"]

@@ -1,0 +1,13 @@
+orchestrator:
+  agents:
+  - a2a_endpoint: http://localhost:8110
+    agent_id: assistant_agent
+    endpoint: http://localhost:8010
+    type: assistant
+  - a2a_endpoint: http://localhost:8111
+    agent_id: researcher_agent
+    endpoint: http://localhost:8011
+    type: researcher
+  max_retries: 3
+  name: Multi-Agent Orchestrator
+  routing_strategy: round_robin
