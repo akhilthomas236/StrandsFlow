@@ -1,7 +1,9 @@
 """StrandsFlow agent implementation using Strands SDK."""
 
 import asyncio
+import json
 import logging
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import structlog
@@ -243,6 +245,64 @@ class StrandsFlowAgent:
             if mcp_client:
                 self.mcp_clients.append(mcp_client)
                 logger.info(f"Added MCP server: {name}")
+    
+    async def discover_mcp_servers(self) -> List[Dict[str, Any]]:
+        """Discover MCP servers from configured paths."""
+        discovered_servers = []
+        
+        if not self.config.mcp.auto_discover:
+            return discovered_servers
+        
+        for discovery_path in self.config.mcp.discovery_paths:
+            try:
+                path = Path(discovery_path).expanduser()
+                if path.exists() and path.is_dir():
+                    for server_file in path.glob("*.json"):
+                        try:
+                            with open(server_file, 'r') as f:
+                                server_config = json.load(f)
+                                server_config['source'] = str(server_file)
+                                discovered_servers.append(server_config)
+                                logger.info(f"Discovered MCP server: {server_config.get('name', server_file.name)}")
+                        except Exception as e:
+                            logger.warning(f"Failed to load MCP server config {server_file}: {e}")
+            except Exception as e:
+                logger.warning(f"Failed to scan discovery path {discovery_path}: {e}")
+        
+        return discovered_servers
+    
+    async def add_mcp_server_from_config(self, server_config: Dict[str, Any]) -> bool:
+        """Add an MCP server from configuration."""
+        try:
+            name = server_config.get('name', 'unknown')
+            transport = server_config.get('transport', 'stdio')
+            
+            if transport == 'stdio':
+                command = server_config.get('command', [])
+                if not command:
+                    logger.error(f"MCP server {name} missing command")
+                    return False
+                
+                mcp_client = await self._create_mcp_client({
+                    'name': name,
+                    'transport': transport,
+                    'command': command,
+                    'args': server_config.get('args', []),
+                    'env': server_config.get('env', {})
+                })
+                
+                if mcp_client:
+                    self.mcp_clients.append(mcp_client)
+                    logger.info(f"Added MCP server: {name}")
+                    return True
+                    
+            else:
+                logger.warning(f"Unsupported MCP transport for {name}: {transport}")
+                
+        except Exception as e:
+            logger.error(f"Failed to add MCP server: {e}")
+            
+        return False
     
     def _get_default_system_prompt(self) -> str:
         """Get the default system prompt for StrandsFlow."""

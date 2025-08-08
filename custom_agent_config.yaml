@@ -1,14 +1,15 @@
 agent:
-  description: AI agent powered by AWS Bedrock and MCP tools
+  description: Custom AI agent with flexible configuration
   enable_memory: true
   max_conversation_turns: 50
-  name: StrandsFlow Agent
-  system_prompt: null
+  name: My Custom Agent
+  system_prompt: You are a helpful AI assistant. Customize this prompt for your specific
+    use case.
 api:
   cors_origins:
   - '*'
   host: 127.0.0.1
-  port: 8000
+  port: 8001
   reload: false
   workers: 1
 bedrock:
@@ -24,6 +25,13 @@ bedrock:
   streaming: true
   temperature: 0.7
   top_p: null
+environment:
+  debug: true
+  enable_metrics: true
+  log_level: INFO
+  max_concurrent_connections: 100
+  name: development
+  rate_limit_requests: 60
 mcp:
   auto_discover: true
   connection_timeout: 30
@@ -32,10 +40,3 @@ mcp:
   - ~/.mcp/servers
   - /usr/local/mcp/servers
   servers: {}
-environment:
-  name: development
-  debug: true
-  log_level: INFO
-  enable_metrics: true
-  rate_limit_requests: 60
-  max_concurrent_connections: 100

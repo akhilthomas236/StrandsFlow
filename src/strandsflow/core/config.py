@@ -157,6 +157,35 @@ class APIConfig(BaseModel):
     )
 
 
+class EnvironmentConfig(BaseModel):
+    """Environment-specific configuration."""
+    
+    name: str = Field(
+        default="development",
+        description="Environment name (development, staging, production)"
+    )
+    debug: bool = Field(
+        default=True,
+        description="Enable debug mode"
+    )
+    log_level: str = Field(
+        default="INFO",
+        description="Logging level"
+    )
+    enable_metrics: bool = Field(
+        default=True,
+        description="Enable metrics collection"
+    )
+    rate_limit_requests: int = Field(
+        default=60,
+        description="Rate limit requests per minute"
+    )
+    max_concurrent_connections: int = Field(
+        default=100,
+        description="Maximum concurrent WebSocket connections"
+    )
+
+
 class StrandsFlowConfig(BaseModel):
     """Main configuration for StrandsFlow platform."""
     
@@ -175,6 +204,15 @@ class StrandsFlowConfig(BaseModel):
     api: APIConfig = Field(
         default_factory=APIConfig,
         description="API server configuration"
+    )
+    
+    environment: EnvironmentConfig = Field(
+        default_factory=EnvironmentConfig,
+        description="Environment-specific configuration"
+    )
+    environment: EnvironmentConfig = Field(
+        default_factory=EnvironmentConfig,
+        description="Environment-specific configuration"
     )
     
     @classmethod
@@ -209,6 +247,20 @@ class StrandsFlowConfig(BaseModel):
             config.api.host = os.getenv("API_HOST")
         if os.getenv("API_PORT"):
             config.api.port = int(os.getenv("API_PORT"))
+            
+        # Environment configuration from environment
+        if os.getenv("ENVIRONMENT_NAME"):
+            config.environment.name = os.getenv("ENVIRONMENT_NAME")
+        if os.getenv("DEBUG"):
+            config.environment.debug = os.getenv("DEBUG").lower() == "true"
+        if os.getenv("LOG_LEVEL"):
+            config.environment.log_level = os.getenv("LOG_LEVEL")
+        if os.getenv("ENABLE_METRICS"):
+            config.environment.enable_metrics = os.getenv("ENABLE_METRICS").lower() == "true"
+        if os.getenv("RATE_LIMIT_REQUESTS"):
+            config.environment.rate_limit_requests = int(os.getenv("RATE_LIMIT_REQUESTS"))
+        if os.getenv("MAX_CONCURRENT_CONNECTIONS"):
+            config.environment.max_concurrent_connections = int(os.getenv("MAX_CONCURRENT_CONNECTIONS"))
             
         return config
     

@@ -282,5 +282,206 @@ def version():
     console.print(table)
 
 
+@app.command()
+def create(
+    agent_type: str = typer.Argument(..., help="Type of agent to create (data-analysis, code-review, custom)"),
+    name: str = typer.Option("My Custom Agent", "--name", "-n", help="Agent name"),
+    config_file: str = typer.Option("custom_agent_config.yaml", "--config", "-c", help="Config file path"),
+    model: str = typer.Option("anthropic.claude-3-haiku-20240307-v1:0", "--model", "-m", help="Bedrock model ID"),
+    port: int = typer.Option(8001, "--port", "-p", help="API server port"),
+):
+    """Create a new custom agent configuration."""
+    
+    try:
+        # Predefined agent templates
+        agent_templates = {
+            "data-analysis": {
+                "name": f"{name} - Data Analysis Expert",
+                "description": "Specialized AI agent for data analysis, statistics, and business intelligence",
+                "system_prompt": """You are a data analysis expert with deep knowledge of:
+- Statistical analysis and hypothesis testing
+- Data visualization and reporting
+- Business intelligence and KPI tracking
+- Machine learning model interpretation
+- Database querying and data processing
+
+Always provide step-by-step analysis, show your reasoning, and suggest actionable insights.""",
+                "max_tokens": 8192,
+                "temperature": 0.3
+            },
+            "code-review": {
+                "name": f"{name} - Code Review Specialist",
+                "description": "Expert code reviewer focusing on quality, security, and best practices",
+                "system_prompt": """You are a senior software engineer and code review expert specializing in:
+- Code quality assessment and improvement
+- Security vulnerability detection
+- Performance optimization
+- Best practices and design patterns
+- Documentation and maintainability
+
+Provide detailed, constructive feedback with specific examples and suggestions.""",
+                "max_tokens": 6144,
+                "temperature": 0.2
+            },
+            "customer-support": {
+                "name": f"{name} - Customer Support Assistant",
+                "description": "Friendly and helpful customer support agent",
+                "system_prompt": """You are a helpful and empathetic customer support representative with expertise in:
+- Troubleshooting technical issues
+- Product knowledge and feature explanations
+- Order management and billing inquiries
+- Escalation procedures
+- Customer satisfaction
+
+Always be polite, patient, and solution-oriented. Ask clarifying questions when needed.""",
+                "max_tokens": 4096,
+                "temperature": 0.7
+            },
+            "creative-writing": {
+                "name": f"{name} - Creative Writing Assistant",
+                "description": "Creative writing companion for stories, content, and ideas",
+                "system_prompt": """You are a creative writing expert and storytelling companion skilled in:
+- Creative fiction and narrative development
+- Content creation and copywriting
+- Character development and dialogue
+- Plot structure and pacing
+- Style adaptation and voice consistency
+
+Help users develop compelling narratives and engaging content.""",
+                "max_tokens": 6144,
+                "temperature": 0.8
+            },
+            "custom": {
+                "name": name,
+                "description": "Custom AI agent with flexible configuration",
+                "system_prompt": "You are a helpful AI assistant. Customize this prompt for your specific use case.",
+                "max_tokens": 4096,
+                "temperature": 0.7
+            }
+        }
+        
+        if agent_type not in agent_templates:
+            rprint(f"[red]Error: Unknown agent type '{agent_type}'[/red]")
+            rprint(f"[yellow]Available types: {', '.join(agent_templates.keys())}[/yellow]")
+            raise typer.Exit(1)
+        
+        template = agent_templates[agent_type]
+        
+        # Create configuration
+        config_data = {
+            "agent": {
+                "name": template["name"],
+                "description": template["description"],
+                "enable_memory": True,
+                "max_conversation_turns": 50,
+                "system_prompt": template["system_prompt"]
+            },
+            "api": {
+                "cors_origins": ["*"],
+                "host": "127.0.0.1",
+                "port": port,
+                "reload": False,
+                "workers": 1
+            },
+            "bedrock": {
+                "cache_prompt": None,
+                "cache_tools": None,
+                "guardrail_id": None,
+                "guardrail_trace": "enabled",
+                "guardrail_version": None,
+                "max_tokens": template["max_tokens"],
+                "model_id": model,
+                "region_name": "us-west-2",
+                "stop_sequences": None,
+                "streaming": True,
+                "temperature": template["temperature"],
+                "top_p": None
+            },
+            "mcp": {
+                "auto_discover": True,
+                "connection_timeout": 30,
+                "default_transport": "stdio",
+                "discovery_paths": [
+                    "~/.mcp/servers",
+                    "/usr/local/mcp/servers"
+                ],
+                "servers": {}
+            },
+            "environment": {
+                "name": "development",
+                "debug": True,
+                "log_level": "INFO",
+                "enable_metrics": True,
+                "rate_limit_requests": 60,
+                "max_concurrent_connections": 100
+            }
+        }
+        
+        # Write configuration file
+        import yaml
+        with open(config_file, 'w') as f:
+            yaml.dump(config_data, f, default_flow_style=False, indent=2)
+        
+        rprint(f"[green]✅ Created custom agent configuration: {config_file}[/green]")
+        rprint(f"[blue]Agent Type: {agent_type}[/blue]")
+        rprint(f"[blue]Agent Name: {template['name']}[/blue]")
+        rprint(f"[blue]Port: {port}[/blue]")
+        rprint(f"[blue]Model: {model}[/blue]")
+        
+        rprint("\n[yellow]Next steps:[/yellow]")
+        rprint(f"1. [cyan]strandsflow server --config {config_file}[/cyan]")
+        rprint(f"2. [cyan]strandsflow chat --config {config_file}[/cyan]")
+        rprint(f"3. Visit [cyan]http://localhost:{port}/docs[/cyan] for API documentation")
+        
+        # Create example usage script
+        example_script = f"""#!/usr/bin/env python3
+\"\"\"
+Example usage of your custom {agent_type} agent.
+\"\"\"
+
+import asyncio
+import httpx
+
+async def test_custom_agent():
+    \"\"\"Test the custom agent via API.\"\"\"
+    
+    base_url = "http://localhost:{port}"
+    
+    # Test health check
+    async with httpx.AsyncClient() as client:
+        # Health check
+        health = await client.get(f"{{base_url}}/health")
+        print("Health:", health.json())
+        
+        # Agent info
+        info = await client.get(f"{{base_url}}/agent/info")
+        print("Agent Info:", info.json())
+        
+        # Chat example
+        chat_response = await client.post(
+            f"{{base_url}}/chat",
+            json={{
+                "content": "Hello! Can you introduce yourself and explain what you can help me with?",
+                "session_id": "test-session"
+            }}
+        )
+        print("Chat Response:", chat_response.json())
+
+if __name__ == "__main__":
+    print("Testing custom {agent_type} agent...")
+    asyncio.run(test_custom_agent())
+"""
+        
+        script_file = f"test_{agent_type.replace('-', '_')}_agent.py"
+        with open(script_file, 'w') as f:
+            f.write(example_script)
+        
+        rprint(f"[green]📝 Created example script: {script_file}[/green]")
+        
+    except Exception as e:
+        rprint(f"[red]❌ Error creating custom agent: {e}[/red]")
+        raise typer.Exit(1)
+
+
 if __name__ == "__main__":
     app()
