@@ -17,6 +17,7 @@ StrandsFlow is a production-ready AI agent platform that extends the [Strands Ag
 - **⚙️ Configuration Management**: Flexible config with environment variables, files (JSON/YAML), and profiles
 - **🤖 Custom Agents**: Easy creation of specialized agents via configuration or code
 - **🔒 Production Ready**: Error handling, connection management, and scalable architecture
+- **🤝 Multi-Agent Support**: Agent-to-Agent (A2A) protocol, agent orchestration, and workflow patterns
 
 ## 🚀 Quick Start
 
@@ -489,193 +490,177 @@ strandsflow server --config my_agent.yaml --port 8001
 
 ### 🔮 Sprint 3: Production Features (Planned)
 - [ ] Authentication and authorization
-- [ ] Database persistence
+- [ ] Database persistence  
 - [ ] Advanced monitoring and observability
 - [ ] Deployment templates (Docker, Kubernetes)
-- [ ] **Multi-agent orchestration and communication**
+- [ ] **Enhanced multi-agent orchestration UI/API** (building on existing Strands SDK capabilities)
 - [ ] Agent marketplace and templates
+- [ ] **A2A server integration** for StrandsFlow agents
+- [ ] **Multi-agent workflow designer**
 
-### 🤖 Multi-Agent Communication (Future Feature)
+### 🤖 Multi-Agent Communication (Available in Strands SDK)
 
-**Current Status**: Multi-agent communication is not yet implemented but is planned for Sprint 3.
+**Current Status**: Multi-agent communication is **available** in the Strands Agents SDK! StrandsFlow can leverage these capabilities.
 
-#### Potential Implementation Approaches:
+#### 🎯 Strands SDK Multi-Agent Features:
 
-**1. Message Broker Pattern**
+**1. Agent-to-Agent (A2A) Protocol**
 ```python
-# Future implementation concept
-class AgentOrchestrator:
+# Install with A2A support
+pip install 'strands-agents[a2a]'
+
+# Create A2A Server
+from strands import Agent
+from strands.multiagent.a2a import A2AServer
+from strands_tools import calculator
+
+agent = Agent(
+    name="Calculator Agent",
+    description="A calculator agent that can perform basic arithmetic operations.",
+    tools=[calculator]
+)
+
+# Expose agent as A2A server
+a2a_server = A2AServer(agent=agent)
+a2a_server.serve()  # Runs on http://localhost:9000 by default
+```
+
+**2. Agents as Tools Pattern**
+```python
+from strands import Agent, tool
+
+@tool
+def math_specialist(query: str) -> str:
+    """Specialized math agent for calculations."""
+    math_agent = Agent(
+        tools=[calculator],
+        instructions="You are a math expert. Solve problems step by step."
+    )
+    return math_agent(query).message
+
+@tool
+def code_specialist(query: str) -> str:
+    """Specialized coding agent."""
+    code_agent = Agent(
+        tools=[python_repl, editor],
+        instructions="You are a programming expert. Write clean, documented code."
+    )
+    return code_agent(query).message
+
+# Orchestrator agent that uses specialists
+orchestrator = Agent(
+    tools=[math_specialist, code_specialist],
+    instructions="Route queries to appropriate specialists based on the topic."
+)
+
+result = orchestrator("Calculate fibonacci sequence and implement it in Python")
+```
+
+**3. Multi-Agent Workflows**
+```python
+# Sequential agent workflow
+class AgentWorkflow:
     def __init__(self):
-        self.agents = {}
-        self.message_broker = MessageBroker()
+        self.researcher = Agent(tools=[http_request], instructions="Research topics thoroughly")
+        self.writer = Agent(tools=[editor], instructions="Write clear, engaging content")
+        self.reviewer = Agent(instructions="Review and improve content quality")
     
-    async def register_agent(self, agent_id: str, agent: StrandsFlowAgent):
-        self.agents[agent_id] = agent
-        await self.message_broker.subscribe(agent_id, agent.handle_message)
-    
-    async def send_message(self, from_agent: str, to_agent: str, message: str):
-        await self.message_broker.publish(to_agent, {
-            "from": from_agent,
-            "content": message,
-            "timestamp": datetime.now()
-        })
+    async def process(self, topic: str):
+        # Research phase
+        research = await self.researcher.invoke_async(f"Research: {topic}")
+        
+        # Writing phase
+        draft = await self.writer.invoke_async(f"Write article based on: {research.message}")
+        
+        # Review phase
+        final = await self.reviewer.invoke_async(f"Review and improve: {draft.message}")
+        
+        return final.message
 ```
 
-**2. Shared Context Pattern**
+**4. A2A Client Integration**
 ```python
-# Agents sharing context through MCP servers
-mcp:
-  servers:
-    shared_context:
-      command: ["python", "shared_context_server.py"]
-      transport: "stdio"
-      config:
-        context_store: "redis://localhost:6379"
+# Install A2A client tools
+pip install 'strands-agents-tools[a2a_client]'
+
+from strands import Agent
+from strands_tools.a2a_client import A2AClientToolProvider
+
+# Agent that can discover and use other A2A agents
+provider = A2AClientToolProvider(known_agent_urls=["http://localhost:9000"])
+agent = Agent(tools=provider.tools)
+
+# Agent can now communicate with external A2A agents
+response = agent("Find a calculator agent and compute 15 * 23")
 ```
 
-**3. Agent Coordination API**
-```python
-# Future REST endpoints for agent communication
-/api/v1/orchestration/agents/{agent_id}/send:
-  POST: # Send message to another agent
+#### 🔄 Multi-Agent Patterns Available:
 
-/api/v1/orchestration/conversations:
-  POST: # Start multi-agent conversation
-  GET:  # List active multi-agent conversations
+1. **Orchestrator Pattern**: Central coordinator routing to specialists
+2. **Pipeline Pattern**: Sequential processing through agent chain  
+3. **Swarm Pattern**: Parallel processing with multiple agents
+4. **Graph Pattern**: Complex workflows with conditional routing
+5. **A2A Federation**: Cross-platform agent communication
 
-/api/v1/orchestration/workflows:
-  POST: # Define agent workflow
-  GET:  # List workflows
-```
+#### 🛠️ Integration with StrandsFlow:
 
-#### Use Cases for Multi-Agent Communication:
-- **Code Review Workflow**: Reviewer agent → Developer agent → QA agent
-- **Customer Support**: Triage agent → Specialist agent → Follow-up agent
-- **Data Analysis Pipeline**: Collector agent → Analyzer agent → Reporter agent
-- **Content Creation**: Research agent → Writer agent → Editor agent
-
-#### Current Workarounds:
-1. **External Coordination**: Use external services to coordinate between agents
-2. **Shared MCP Servers**: Agents can communicate through shared tools
-3. **Database Integration**: Store intermediate results for other agents to process
-4. **WebSocket Broadcasting**: Broadcast messages to multiple agent sessions
-
-#### Example: Multi-Agent Workflow with Current System
+StrandsFlow can be enhanced to use these patterns:
 
 ```python
-# Simple multi-agent coordinator using current StrandsFlow
-import asyncio
+# Enhanced StrandsFlow with multi-agent support
 from strandsflow.core.agent import StrandsFlowAgent
-from strandsflow.core.config import StrandsFlowConfig
+from strands.multiagent.a2a import A2AServer
 
-class SimpleAgentCoordinator:
+class MultiAgentStrandsFlow:
     def __init__(self):
         self.agents = {}
-        self.shared_context = {}
+        self.orchestrator = None
     
-    async def add_agent(self, name: str, config_path: str):
-        """Add an agent to the coordinator."""
+    def add_specialist(self, name: str, config_path: str):
+        """Add a specialist agent."""
         config = StrandsFlowConfig.from_file(config_path)
         agent = StrandsFlowAgent(config=config)
-        await agent.initialize()
         self.agents[name] = agent
-    
-    async def sequential_workflow(self, task: str, agent_chain: list):
-        """Execute a task through a chain of agents."""
-        result = task
         
-        for agent_name in agent_chain:
-            if agent_name in self.agents:
-                print(f"Passing to {agent_name}: {result}")
-                result = await self.agents[agent_name].chat(result)
-                
-                # Store intermediate results
-                self.shared_context[f"{agent_name}_output"] = result
+        # Expose as A2A server
+        a2a_server = A2AServer(agent=agent.agent, port=8000 + len(self.agents))
+        a2a_server.serve()
+    
+    def create_orchestrator(self, specialists: list):
+        """Create orchestrator that can route to specialists."""
+        specialist_tools = []
+        for name in specialists:
+            if name in self.agents:
+                specialist_tools.append(self._create_specialist_tool(name))
         
-        return result
+        self.orchestrator = Agent(
+            tools=specialist_tools,
+            instructions="Route queries to the most appropriate specialist agent."
+        )
     
-    async def parallel_analysis(self, task: str, agent_names: list):
-        """Run task through multiple agents in parallel."""
-        tasks = [
-            self.agents[name].chat(task) 
-            for name in agent_names 
-            if name in self.agents
-        ]
-        
-        results = await asyncio.gather(*tasks)
-        return dict(zip(agent_names, results))
-
-# Usage example
-async def multi_agent_example():
-    coordinator = SimpleAgentCoordinator()
-    
-    # Add specialized agents
-    await coordinator.add_agent("researcher", "research_agent.yaml")
-    await coordinator.add_agent("writer", "writer_agent.yaml") 
-    await coordinator.add_agent("reviewer", "review_agent.yaml")
-    
-    # Sequential workflow
-    final_result = await coordinator.sequential_workflow(
-        "Write a technical blog post about AI agents",
-        ["researcher", "writer", "reviewer"]
-    )
-    
-    # Parallel analysis
-    analysis_results = await coordinator.parallel_analysis(
-        "Analyze this code for bugs and performance issues",
-        ["security_agent", "performance_agent", "style_agent"]
-    )
-    
-    print("Final result:", final_result)
-    print("Analysis results:", analysis_results)
-
-# Run the example
-asyncio.run(multi_agent_example())
+    async def process_query(self, query: str):
+        """Process query through orchestrator."""
+        if self.orchestrator:
+            return await self.orchestrator.invoke_async(query)
+        else:
+            raise ValueError("No orchestrator configured")
 ```
 
-#### Shared MCP Server for Agent Communication
+#### 📚 Examples and Resources:
 
-```python
-# shared_message_server.py - MCP server for agent communication
-import json
-from collections import defaultdict
-from mcp.server import Server
-from mcp.types import Tool
+- **Teacher's Assistant**: Multi-agent orchestrator example in Strands docs
+- **A2A Protocol**: Open standard for agent-to-agent communication
+- **Agent Marketplaces**: Discover agents from different providers
+- **Cross-Platform Integration**: Connect with other A2A-compatible systems
 
-app = Server("shared-messages")
-agent_messages = defaultdict(list)
+#### Current Capabilities:
+✅ **Agent-to-Agent (A2A) Protocol** - Production ready  
+✅ **Agents as Tools** - Wrap agents as callable tools  
+✅ **Multi-Agent Workflows** - Sequential and parallel processing  
+✅ **A2A Client/Server** - Standardized communication  
+✅ **Streaming Support** - Real-time agent communication  
 
-@app.tool("send_message")
-async def send_message(to_agent: str, from_agent: str, message: str) -> str:
-    """Send a message to another agent."""
-    agent_messages[to_agent].append({
-        "from": from_agent,
-        "message": message,
-        "timestamp": datetime.now().isoformat()
-    })
-    return f"Message sent to {to_agent}"
-
-@app.tool("get_messages")
-async def get_messages(agent_id: str) -> str:
-    """Get messages for an agent."""
-    messages = agent_messages.get(agent_id, [])
-    agent_messages[agent_id] = []  # Clear after reading
-    return json.dumps(messages)
-
-if __name__ == "__main__":
-    app.run()
-```
-
-```yaml
-# Agent configuration with shared communication server
-mcp:
-  servers:
-    shared_messages:
-      command: ["python", "shared_message_server.py"]
-      transport: "stdio"
-```
-
-**Note**: These are workarounds with the current system. Native multi-agent communication will be implemented in Sprint 3 with proper orchestration, state synchronization, and built-in coordination patterns.
+**Note**: These are native Strands SDK capabilities that StrandsFlow can leverage. The examples above show how to integrate multi-agent patterns into StrandsFlow applications.
 
 ## 🧪 Testing
 
