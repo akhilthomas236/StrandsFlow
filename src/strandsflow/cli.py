@@ -104,7 +104,7 @@ def chat(
             if message:
                 # Single message mode
                 rprint(f"\n[bold]User:[/bold] {message}")
-                response = await agent.chat_async(message)
+                response = await agent.chat(message)
                 rprint(f"[bold]{config.agent.name}:[/bold] {response}")
             else:
                 # Interactive mode
@@ -121,7 +121,7 @@ def chat(
                             continue
                         
                         # Get response from agent
-                        response = await agent.chat_async(user_input)
+                        response = await agent.chat(user_input)
                         rprint(f"[bold green]{config.agent.name}[/bold green]: {response}")
                         
                     except KeyboardInterrupt:

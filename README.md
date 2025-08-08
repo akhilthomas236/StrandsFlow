@@ -21,16 +21,13 @@ StrandsFlow is a production-ready AI agent platform that extends the [Strands Ag
 ### Installation
 
 ```bash
-# Clone the repository
-git clone <repo-url>
-cd strands_agent
+# Install from PyPI
+pip install strandsflow
 
-# Create virtual environment (requires Python 3.11+)
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
+# Or install from source
+git clone https://github.com/akhilthomas236/StrandsFlow.git
+cd StrandsFlow
+pip install -e .
 ```
 
 ### AWS Configuration
@@ -52,23 +49,20 @@ export AWS_REGION=us-west-2
 ### CLI Usage
 
 ```bash
-# Add src to Python path
-export PYTHONPATH=src
-
 # Initialize configuration
-python -m strandsflow.cli init
+strandsflow init
 
 # Start interactive chat
-python -m strandsflow.cli chat
+strandsflow chat
 
 # View configuration
-python -m strandsflow.cli config --show
+strandsflow config --show
 
 # Start API server
-python -m strandsflow.cli server
+strandsflow server
 
 # Check version
-python -m strandsflow.cli version
+strandsflow version
 ```
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install strands-agents strands-agents-tools fastapi uvicorn pydantic structlog httpx aiofiles typer rich websockets
